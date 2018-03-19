@@ -1,0 +1,220 @@
+---
+title: "Assignment3"
+author: "RF"
+date: "3/6/2018"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Multivariate linear models
+
+In this assignment you will investigate the relation between different aspects of IQ and symptom severity in ASD (as measured by ADOS). The assignment is meant to make you practice on linear models, multiple predictors and interactions.
+
+The data you will use is the outcome of the psychological testing of the children you analyzed in methods 3.
+Data: https://www.dropbox.com/s/hom2qnmp9hyfwmu/Assignment3Data.csv?dl=0
+The data consists of ChildID, gender, age, diagnosis (ASD), symptom severity (ADOS), several aspects of IQ (NonVerbal/Perceptual,Verbal,Social) and the visit at which the tests were administered. The questions should be answered by focusing on visit 1.
+
+```{r}
+# libraries and data
+library(rethinking)
+library(mvtnorm)
+library(bayesplot)
+library(ggplot2)
+
+
+d = read.csv("Assignment3Data.csv")
+
+
+```
+
+
+The questions you will have to answer are:
+
+1. Assess the relation between symptom severity and IQ (focus on visit 1 and children with ASD) and report the model, a plot of the model, a couple of lines describing the quality of the model and interpreting the results. P.S. Should you scale? P.P.S. Don't forget to motivate your priors. P.P.P.S. At least one plot for results and a plot for quality of each model (here and in the next questions) would be appreciated.
+1.1. Verbal IQ and ADOS
+1.2. Non Verbal IQ and ADOS
+1.3. Social IQ and ADOS
+
+```{r}
+
+# subset with only visit == 1 and ASD == 1
+sub_d = subset(d, d$Visit == 1 & d$ASD == 1)
+
+
+# scaling?
+#scale_d = scale(sub_d[, 6:8], center = T)
+
+
+# model for verbal IQ predicting ADOS
+v_m <- map(
+  alist(
+    ADOS ~ dnorm( mu , sigma ) ,
+    mu <- a + b*VerbalIQ_c ,
+    a ~ dnorm(15,5) ,
+    b ~ dnorm( 0 , 10 ) ,
+    sigma ~ dunif( 0 , 10 )
+    ) ,
+  data=sub_d )
+
+# summary
+precis(v_m)
+precis(v_m , corr=TRUE )
+
+# centering as data is correlated
+sub_d$VerbalIQ_c = sub_d$VerbalIQ - mean(sub_d$VerbalIQ)
+
+
+# plotting
+plot( ADOS ~ VerbalIQ_c , data= sub_d )
+abline( a=coef(v_m)["a"] , b=coef(v_m)["b"] )
+
+plot(precis(v_m))
+
+# extract 100 samples from the posterior
+post <- extract.samples( v_m , n=100 )
+
+# display raw data and sample size
+plot( sub_d$VerbalIQ_c , sub_d$ADOS ,
+xlim=range(sub_d$VerbalIQ_c) , ylim=range(sub_d$ADOS) ,
+col=rangi2 , xlab="verbalIQ" , ylab="ADOS" )
+
+# plot the lines, with transparency
+for ( i in 1:100 )
+abline( a=post$a[i] , b=post$b[i] , col=col.alpha("black",0.3) )
+
+
+# plotting using Bayes plot
+
+sim_vm = sim(v_m, data = sub_d)
+str(sim_vm)
+
+ppc_dens_overlay(sub_d$ADOS, sim_vm)
+
+
+```
+
+```{r}
+
+# model for nonverbal IQ predicting ADOS
+nv_m <- map(
+  alist(
+    ADOS ~ dnorm( mu , sigma ) ,
+    mu <- a + b*NonVerbalIQ_c ,
+    a ~ dnorm(5, 5) ,
+    b ~ dnorm( 0 , 20 ) ,
+    sigma ~ dunif( 0 , 20 )
+    ) ,
+  data=sub_d )
+
+precis(nv_m)
+
+sub_d$NonVerbalIQ_c = sub_d$NonVerbalIQ - mean(sub_d$NonVerbalIQ)
+
+# plotting
+plot( ADOS ~ NonVerbalIQ_c , data= sub_d )
+abline( a=coef(nv_m)["a"] , b=coef(nv_m)["b"] )
+
+plot(precis(nv_m))
+
+# extract 100 samples from the posterior
+post <- extract.samples( nv_m , n=100 )
+
+# display raw data and sample size
+plot( sub_d$NonVerbalIQ_c , sub_d$ADOS ,
+xlim=range(sub_d$NonVerbalIQ_c) , ylim=range(sub_d$ADOS) ,
+col=rangi2 , xlab="NonverbalIQ" , ylab="ADOS" )
+
+# plot the lines, with transparency
+for ( i in 1:100 )
+abline( a=post$a[i] , b=post$b[i] , col=col.alpha("black",0.3) )
+
+
+# plotting using Bayes plot
+sim_vm = sim(nv_m, data = sub_d)
+str(sim_nvm)
+
+ppc_dens_overlay(sub_d$ADOS, sim_nvm)
+
+
+```
+
+```{r}
+
+# model for social IQ predicting ADOS
+s_m <- map(
+  alist(
+    ADOS ~ dnorm( mu , sigma ) ,
+    mu <- a + b*SocialIQ_c ,
+    a ~ dnorm(50, 30),
+    b ~ dnorm( 0 , 30 ) ,
+    sigma ~ dunif( 0 , 50 )
+    ) ,
+  data=sub_d )
+
+precis(s_m)
+
+# centering data
+sub_d$SocialIQ_c = sub_d$SocialIQ - mean(sub_d$SocialIQ)
+
+
+# plotting
+plot( ADOS ~ SocialIQ_c , data= sub_d )
+abline( a=coef(s_m)["a"] , b=coef(s_m)["b"] )
+
+plot(precis(s_m))
+
+ # extract 100 samples from the posterior
+post <- extract.samples( s_m , n=100 )
+
+# display raw data and sample size
+plot( sub_d$SocialIQ_c , sub_d$ADOS ,
+xlim=range(sub_d$SocialIQ_c) , ylim=range(sub_d$ADOS) ,
+col=rangi2 , xlab="Social lIQ" , ylab="ADOS" )
+
+# plot the lines, with transparency
+for ( i in 1:100 )
+abline( a=post$a[i] , b=post$b[i] , col=col.alpha("black",0.3) )
+
+
+# plotting using Bayes plot
+sim_sm = sim(s_m, data = sub_d)
+str(sim_sm)
+
+ppc_dens_overlay(sub_d$ADOS, sim_sm)
+
+```
+
+
+2. Do the different aspects of IQ account for different portions of the variance in ADOS? 
+2.1. Does it make sense to have all IQ measures in the same model? First write a few lines answering the question and motivating your answer, including a discussion as to what happens when you put all of them in the same model. Then build a model following your answer. If your answer is "no", you are not free, you still have to answer: are there alternative ways of answering the question?
+  It does make sense considering the different measures of IQ might describe different aspects of IQ.
+  At the other hand, the measures might be correlated and describe a lot of the same aspects of IQ. 
+
+2.2. Build the model, assess its quality, write a few lines interpreting the results.
+# both yes and no are legitimate answers, you just have to motivate
+# How do we assess model quality? Only visual?
+## for now we plot the data and look at it, next week we will also look at information criterions.
+## but plots are important as it tells us about the distribution while information criterions are just means.
+
+```{r}
+
+
+
+```
+
+
+
+3. Let's now include also the TD children. Does it make sense to ask whether IQ and ADOS are related? Motivate your answer. In any case, if you wanted to build a model to answer that question, which model would you build? Run the model, assess its quality, write a few lines interpreting the results.
+
+4. Let's discuss contents:
+4.1. You have three scores for IQ, do they show shared variance? Is that the same in TD and ASD? What does that tell us about IQ?
+4.2. You have explored the relation between IQ and ADOS. How do you explain that relation from a cognitive perspective? N.B. You can present alternative hypotheses.
+
+5. Bonus questions: Including measurement errors. 
+5.1. Let's assume that ADOS has a measurement error of 1. How would you model that in any of the previous models? 
+5.2. We know that IQ has an estimated measurement error of 2.12. How would you include that? 
+
+
