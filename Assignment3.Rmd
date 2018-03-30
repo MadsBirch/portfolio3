@@ -43,18 +43,29 @@ The questions you will have to answer are:
 # subset with only visit == 1 and ASD == 1
 sub_d = subset(d, d$Visit == 1 & d$ASD == 1)
 
+# centering as data is correlated
+# standardizng to get data on the same scale
+sub_d$VerbalIQ_s = scale(sub_d$VerbalIQ, center = T, scale = T)
 
-# scaling?
-#scale_d = scale(sub_d[, 6:8], center = T)
 
+# defining priors
+# flat prior for intercept
+# slightly reguralizing prior for beta
+range(sub_d$ADOS)
+range(sub_d$VerbalIQ_s)
+sd(sub_d$VerbalIQ_s)
+
+plot(sub_d$ADOS)
+
+plot(dnorm(0,100))
 
 # model for verbal IQ predicting ADOS
 v_m <- map(
   alist(
     ADOS ~ dnorm( mu , sigma ) ,
-    mu <- a + b*VerbalIQ_c ,
-    a ~ dnorm(15,5) ,
-    b ~ dnorm( 0 , 10 ) ,
+    mu <- a + b*VerbalIQ_s ,
+    a ~ dnorm(0,100) ,
+    b ~ dnorm( 0 , 1 ) ,
     sigma ~ dunif( 0 , 10 )
     ) ,
   data=sub_d )
@@ -63,22 +74,47 @@ v_m <- map(
 precis(v_m)
 precis(v_m , corr=TRUE )
 
-# centering as data is correlated
-sub_d$VerbalIQ_c = sub_d$VerbalIQ - mean(sub_d$VerbalIQ)
 
-
-# plotting
-plot( ADOS ~ VerbalIQ_c , data= sub_d )
+# ------ plotting -----
+# basic plot
+plot( ADOS ~ VerbalIQ_s , data= sub_d )
 abline( a=coef(v_m)["a"] , b=coef(v_m)["b"] )
 
+# parameter plot
 plot(precis(v_m))
 
+#
+vIQ.seq = seq(from = -2, to = 2, by = 0.1)
+str(vIQ.seq)
+
+sim.ADOS <- sim(v_m , data=list(VerbalIQ_s=vIQ.seq) )
+str(sim.ADOS)
+
+ADOS.PI <- apply( sim.ADOS , 2 , PI , prob=0.89 )
+
+post <- extract.samples(v_m)
+mu.link <- function(VerbalIQ_s) post$a + post$b*VerbalIQ_s
+
+mu <- sapply( vIQ.seq , mu.link )
+mu.mean <- apply( mu , 2 , mean )
+mu.HPDI <- apply( mu , 2 , HPDI , prob=0.89 )
+
+# plot raw data
+plot( ADOS ~ VerbalIQ_s , sub_d , col=col.alpha(rangi2,0.5) )
+# draw MAP line
+lines( vIQ.seq , mu.mean )
+# draw HPDI region for line
+shade( mu.HPDI , vIQ.seq )
+# draw PI region for simulated heights
+shade( ADOS.PI , vIQ.seq )
+
+# ANOTHER plot
 # extract 100 samples from the posterior
 post <- extract.samples( v_m , n=100 )
 
 # display raw data and sample size
-plot( sub_d$VerbalIQ_c , sub_d$ADOS ,
-xlim=range(sub_d$VerbalIQ_c) , ylim=range(sub_d$ADOS) ,
+plot( sub_d$VerbalIQ_s , sub_d$ADOS ,
+xlim=range(sub_d$VerbalIQ_s) , ylim=range(sub_d$ADOS) ,
 col=rangi2 , xlab="verbalIQ" , ylab="ADOS" )
 
 # plot the lines, with transparency
@@ -97,21 +133,30 @@ ppc_dens_overlay(sub_d$ADOS, sim_vm)
 ```
 
 ```{r}
+# centering as data is correlated
+# standardizng to get data on the same scale
+sub_d$NonVerbalIQ_s = scale(sub_d$NonVerbalIQ, center = T, scale = T)
+
+
+# defining priors
+range(sub_d$NonVerbalIQ_s)
+sd(sub_d$NonVerbalIQ_s)
+
 
 # model for nonverbal IQ predicting ADOS
 nv_m <- map(
   alist(
     ADOS ~ dnorm( mu , sigma ) ,
-    mu <- a + b*NonVerbalIQ_c ,
-    a ~ dnorm(5, 5) ,
-    b ~ dnorm( 0 , 20 ) ,
+    mu <- a + b*NonVerbalIQ_s ,
+    a ~ dnorm(0, 100) ,
+    b ~ dnorm( 0 , 1.5) ,
     sigma ~ dunif( 0 , 20 )
     ) ,
-  data=sub_d )
+  data=sub_d,
+  control = list(maxit=10000))
 
 precis(nv_m)
 
-sub_d$NonVerbalIQ_c = sub_d$NonVerbalIQ - mean(sub_d$NonVerbalIQ)
 
 # plotting
 plot( ADOS ~ NonVerbalIQ_c , data= sub_d )
