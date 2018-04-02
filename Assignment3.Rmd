@@ -302,14 +302,15 @@ ppc_dens_overlay(sub_d$ADOS, sim_sm)
 ## but plots are important as it tells us about the distribution while information criterions are just means.
 
 ```{r}
-
+# pairs plot
 pairs(~ ADOS + VerbalIQ_s + NonVerbalIQ_s + SocialIQ_s, data = sub_d)
 
+# correlation test
 cor(sub_d$NonVerbalIQ_s, sub_d$VerbalIQ_s)
 cor(sub_d$NonVerbalIQ_s, sub_d$SocialIQ_s)
 cor(sub_d$SocialIQ_s, sub_d$VerbalIQ_s)
 
-
+# model
 m.2.2 = map(
   alist(
     ADOS ~ dnorm( mu , sigma ) ,
@@ -323,42 +324,94 @@ m.2.2 = map(
   data=sub_d )
 
 precis(m.2.2)
-plot(precis(m.2.2))
+
 
 # ---- Plotting ----
+plot(precis(m.2.2))
+sim_m.2.2 = sim(m.2.2, data = sub_d)
+str(sim_sm)
 
-###
-fmIQ.seq = seq(from = 3, to = 3, by = 0.1)
+ppc_dens_overlay(sub_d$ADOS, sim_m.2.2)
 
-sim.ADOS <- sim(s_m , data=list(SocialIQ_s=sIQ.seq) )
 
-ADOS.PI <- apply( sim.ADOS , 2 , PI , prob=0.89 )
-
-post <- extract.samples(s_m)
-mu.link <- function(SocialIQ_s) post$a + post$b*SocialIQ_s
-
-mu <- sapply(sIQ.seq , mu.link )
-mu.mean <- apply( mu , 2 , mean )
-mu.HPDI <- apply( mu , 2 , HPDI , prob=0.89 )
-
-# plot raw data
-plot( ADOS ~ SocialIQ_s , sub_d , col=col.alpha(rangi2,0.5) )
-# draw MAP line
-lines( sIQ.seq , mu.mean )
-# draw HPDI region for line
-shade( mu.HPDI , sIQ.seq )
-# draw PI region for simulated heights
-shade( ADOS.PI , sIQ.seq )
 
 ```
 
 
-
 3. Let's now include also the TD children. Does it make sense to ask whether IQ and ADOS are related? Motivate your answer. In any case, if you wanted to build a model to answer that question, which model would you build? Run the model, assess its quality, write a few lines interpreting the results.
+
+```{r}
+# data subset including TD children, still only visit == 1
+d2 = subset(d, d$Visit == 1, na.remove = T)
+plot(d2$ADOS)
+
+# scaling and centering
+d2$VerbalIQ_s = scale(d2$VerbalIQ, center = T, scale = T)
+d2$NonVerbalIQ_s = scale(d2$NonVerbalIQ, center = T, scale = T)
+d2$SocialIQ_s = scale(d2$SocialIQ, center = T, scale = T)
+
+# remove NA
+d2  = na.omit(d2)
+
+# modelling
+m.3 = map(
+  alist(
+    ADOS ~ dnorm( mu , sigma ) ,
+    mu <- a + b.v*VerbalIQ_s + b.nv*NonVerbalIQ_s + b.s*SocialIQ_s ,
+    a ~ dnorm(0,100),
+    b.v ~ dnorm( 0 , 1) ,
+    b.nv ~ dnorm( 0 , 1.5) ,
+    b.s ~ dnorm( 0 , 1) ,
+    sigma ~ dunif(0 ,20)
+  ),
+  data=d2 )
+
+precis(m.3)
+
+
+# plotting
+
+plot(precis(m.3))
+
+sim_m.3 = sim(m.3, data = d2)
+str(sim_sm)
+
+ppc_dens_overlay(d2$ADOS, sim_m.3)
+
+
+```
+
 
 4. Let's discuss contents:
 4.1. You have three scores for IQ, do they show shared variance? Is that the same in TD and ASD? What does that tell us about IQ?
 4.2. You have explored the relation between IQ and ADOS. How do you explain that relation from a cognitive perspective? N.B. You can present alternative hypotheses.
+
+```{r}
+# data (scaling and centering)
+td_d = subset(d, d$Visit == 1 & d$ASD == 0)
+
+td_d$VerbalIQ_s = scale(td_d$VerbalIQ, center = T, scale = T)
+td_d$NonVerbalIQ_s = scale(td_d$NonVerbalIQ, center = T, scale = T)
+td_d$SocialIQ_s = scale(td_d$SocialIQ, center = T, scale = T)
+
+# remove NA
+td_d = td_d[complete.cases(td_d),]
+
+# renaming data frame
+asd_d = sub_d
+
+# pairs lot for both TD and ASD children
+pairs(~ ADOS + VerbalIQ_s + NonVerbalIQ_s + SocialIQ_s, data = td_d)
+pairs(~ ADOS + VerbalIQ_s + NonVerbalIQ_s + SocialIQ_s, data = asd_d)
+
+# correlation tests
+cor(td_d$NonVerbalIQ_s, td_d$VerbalIQ_s)
+cor(td_d$NonVerbalIQ_s, td_d$SocialIQ_s)
+cor(td_d$SocialIQ_s, td_d$VerbalIQ_s)
+
+```
+
+
 
 5. Bonus questions: Including measurement errors. 
 5.1. Let's assume that ADOS has a measurement error of 1. How would you model that in any of the previous models? 
