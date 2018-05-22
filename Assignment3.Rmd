@@ -23,6 +23,8 @@ library(rethinking)
 library(mvtnorm)
 library(bayesplot)
 library(ggplot2)
+library(brms)
+library(brmstools)
 
 
 d = read.csv("Assignment3Data.csv")
@@ -127,7 +129,7 @@ abline( a=post$a[i] , b=post$b[i] , col=col.alpha("black",0.3) )
 sim_vm = sim(v_m, data = sub_d)
 str(sim_vm)
 
-ppc_dens_overlay(sub_d$ADOS, sim_vm)
+ppc_dens_overlay(sub_d$ADOS, sim_vm[1:50,])
 
 
 ```
@@ -208,7 +210,7 @@ abline( a=post$a[i] , b=post$b[i] , col=col.alpha("black",0.3) )
 sim_nvm = sim(nv_m, data = sub_d)
 str(sim_nvm)
 
-ppc_dens_overlay(sub_d$ADOS, sim_nvm)
+ppc_dens_overlay(sub_d$ADOS, sim_nvm[1:50,])
 
 
 ```
@@ -285,7 +287,7 @@ abline( a=post$a[i] , b=post$b[i] , col=col.alpha("black",0.3) )
 sim_sm = sim(s_m, data = sub_d)
 str(sim_sm)
 
-ppc_dens_overlay(sub_d$ADOS, sim_sm)
+ppc_dens_overlay(sub_d$ADOS, sim_sm[1:50,])
 
 ```
 
@@ -331,8 +333,7 @@ plot(precis(m.2.2))
 sim_m.2.2 = sim(m.2.2, data = sub_d)
 str(sim_sm)
 
-ppc_dens_overlay(sub_d$ADOS, sim_m.2.2)
-
+ppc_dens_overlay(sub_d$ADOS, sim_m.2.2[1:50,])
 
 
 ```
@@ -353,6 +354,12 @@ d2$SocialIQ_s = scale(d2$SocialIQ, center = T, scale = T)
 # remove NA
 d2  = na.omit(d2)
 
+# cheking distribution of ADOS for TD and ASD
+plot(d2$ADOS[d2$ASD == 1])
+
+ggplot(d2, aes(ADOS))+geom_density()
+
+
 # modelling
 m.3 = map(
   alist(
@@ -369,6 +376,40 @@ m.3 = map(
 precis(m.3)
 
 
+m.3.1 = map(
+  alist(
+    ADOS ~ dnorm( mu , sigma ) ,
+    mu <- a + b.d * ASD + b.v*VerbalIQ_s + b.nv*NonVerbalIQ_s + b.s*SocialIQ_s ,
+    a ~ dnorm(0,100),
+    b.d ~ dunif(0,1),
+    b.v ~ dnorm( 0 , 1) ,
+    b.nv ~ dnorm( 0 , 1.5) ,
+    b.s ~ dnorm( 0 , 1) ,
+    sigma ~ dunif(0 ,20)
+  ),
+  data=d2 )
+
+# brms
+get_prior(ADOS ~ ASD + VerbalIQ_s+ NonVerbalIQ_s+ SocialIQ_s, data = d2)
+
+m4 = brm(ADOS ~ ASD + VerbalIQ_s+ NonVerbalIQ_s+ SocialIQ_s,
+         prior = c(prior(normal(0,100), class = Intercept),
+         prior(normal(0,1), class = b, coef = ASD),
+         prior(normal(0,1.5), class = b, coef = NonVerbalIQ_s),
+         prior(normal(0,1), class = b, coef = SocialIQ_s),
+         prior(normal(0,1), class = b, coef = VerbalIQ_s),
+         prior(cauchy(0,2), class = sigma)),
+         data = d2,
+         cores = 2,
+         chain = 2,
+         iter = 20000,
+         warmup = 5000
+         )
+summary(m4)
+plot(m4)
+pp_check(m4, nsamples = 50)
+
+
 # plotting
 
 plot(precis(m.3))
@@ -376,7 +417,7 @@ plot(precis(m.3))
 sim_m.3 = sim(m.3, data = d2)
 str(sim_sm)
 
-ppc_dens_overlay(d2$ADOS, sim_m.3)
+ppc_dens_overlay(d2$ADOS, sim_m.3[1:50,])
 
 
 ```
